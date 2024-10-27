@@ -1,6 +1,6 @@
 from github import Github
 
-from env_config import github_token, openai_api_key, repo_name, pr_number, postgres_db, postgres_user, postgres_password
+from genaigithub.env_config import github_token, openai_api_key, repo_name, pr_number, postgres_db, postgres_user, postgres_password
 
 import os
 from langchain_community.chat_models import ChatOpenAI

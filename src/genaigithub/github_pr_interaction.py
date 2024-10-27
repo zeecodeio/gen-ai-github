@@ -1,12 +1,13 @@
 from github import Github
 from github.PullRequest import PullRequest
 from github.Repository import Repository
+import base64
 from typing import List, Dict, Any
 
 class GitHubRAGPRInteraction:
-    def __init__(self, token: str, repo_owner: str, repo_name: str, pr_number: int):
+    def __init__(self, token: str, repo_name: str, pr_number: int):
         self.github = Github(token)
-        self.repo: Repository = self.github.get_repo(f"{repo_owner}/{repo_name}")
+        self.repo: Repository = self.github.get_repo(repo_name)
         self.pr: PullRequest = self.repo.get_pull(pr_number)
 
     def list_pr_comments(self) -> List[Dict[str, Any]]:
@@ -18,7 +19,7 @@ class GitHubRAGPRInteraction:
         comment = self.pr.create_comment(comment_body)
         return comment
     
-    def get_pr_data(self) -> Dict[str, Any]:
+    def get_pr_data(self):
         commits = self.pr.get_commits()
         
         # Collect PR description, changed files, and comments
@@ -33,13 +34,37 @@ class GitHubRAGPRInteraction:
                 if file.patch:
                     patches += file.patch
         
-        return {
-            "description": description,
-            "changed_files": changed_files,
-            "comments": comments,
-            "patches": patches,
-            "messages": messages
-        }
+        return description, changed_files, comments, patches, messages
+    
+    def get_repo_content(self):
+        contents = self.repo.get_contents("")
+    
+        repo_contents = []
+        while contents:
+            file_content = contents.pop(0)
+            if file_content.type == "dir":
+                contents.extend(self.repo.get_contents(file_content.path))
+            else:
+                encoded_content = file_content.content
+                decoded_content = base64.b64decode(encoded_content)
+                repo_contents.append(f"{file_content.path} -> {decoded_content}")
+                
+        return repo_contents
+    
+    
+    def process_pr_data(self):
+        description, changed_files, comments, messages, patches = self.get_pr_data()
+        contents = self.get_repo_content()
+        
+        # Combine all text data
+        all_text = f"PR Description: {description}\n\n"
+        all_text += f"Changed Files: {', '.join(changed_files)}\n\n"
+        all_text += f"Comments: {' '.join(comments)}"
+        all_text += f"Messages: {' '.join(messages)}"
+        all_text += f"Patches: {' '.join(patches)}"
+        all_text += f"Contents: {' '.join(contents)}"
+        
+        return all_text
 
     def get_pr_details(self) -> Dict[str, Any]:
         """Get details of a specific PR."""
