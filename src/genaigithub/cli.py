@@ -1,5 +1,5 @@
 import click
-from genaigithub.env_config import github_token, openai_api_key, default_repo_name, postgres_db, postgres_user, postgres_password
+from genaigithub.config.env_config import github_token, openai_api_key, default_repo_name, postgres_db, postgres_user, postgres_password, postgres_host, postgres_port
 from genaigithub.github_pr_interaction import GitHubRAGPRInteraction
 from genaigithub.rag_llm_processor import RAGLLMProcessor, PGVectorStore
 
@@ -10,7 +10,7 @@ from genaigithub.rag_llm_processor import RAGLLMProcessor, PGVectorStore
 def process_pr(pr_number, query, repo_name):
     """Process a GitHub PR and answer questions about it."""
     # Use PGVector for the vector store
-    pg_connection_string = f"postgresql+psycopg://{postgres_user}:{postgres_password}@localhost:6024/{postgres_db}"
+    pg_connection_string = f"postgresql+psycopg://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}"
     vector_store = PGVectorStore(pg_connection_string)
 
     # Create the processor with PGVector

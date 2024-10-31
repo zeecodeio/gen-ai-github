@@ -133,3 +133,6 @@ dmypy.json
 *.c
 
 .DS_Store
+
+
+k8s/genaigithub-secret.yaml

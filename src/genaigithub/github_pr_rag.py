@@ -1,8 +1,9 @@
 from github import Github
 
-from genaigithub.env_config import github_token, openai_api_key, repo_name, pr_number, postgres_db, postgres_user, postgres_password
+from genaigithub.config.env_config import github_token, openai_api_key, repo_name, pr_number, postgres_db, postgres_user, postgres_password, postgres_host, postgres_port
 
 import os
+import logging
 from langchain_community.chat_models import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -11,6 +12,16 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.chains import create_retrieval_chain
 import base64
 from langchain.chains.combine_documents import create_stuff_documents_chain
+
+
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 # Initialize GitHub client
 g = Github(github_token)
@@ -75,7 +86,8 @@ def process_pr_data(pr_data, contents):
     return splits
 
 def create_vectorstore(pr_chunks):
-    connection_string = f"postgresql+psycopg://{postgres_user}:{postgres_password}@localhost:6024/{postgres_db}"
+    connection_string = f"postgresql+psycopg://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}"
+    logger.info(f"Connecting to PostgreSQL at {postgres_host}:{postgres_port} with database {postgres_db}")
     vectorstore = PGVector.from_texts(
         texts=pr_chunks,
         embedding=OpenAIEmbeddings(),

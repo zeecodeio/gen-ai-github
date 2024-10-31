@@ -22,12 +22,8 @@ services:
     volumes:
       - mongodb_data:/data/db
 
-  genaigithub-local:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+  genaigithub:
+    image: jrvlima/pr-reviewer-api
     environment:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -36,6 +32,8 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
+    ports:
+      - "8000:8000"
     depends_on:
       - postgres
 

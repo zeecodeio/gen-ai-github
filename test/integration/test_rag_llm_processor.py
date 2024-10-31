@@ -2,7 +2,7 @@ import os
 import pytest
 from dotenv import load_dotenv
 from genaigithub.rag_llm_processor import RAGLLMProcessor
-from genaigithub.env_config import openai_api_key, github_token, repo_owner, repo_name
+from genaigithub.config.env_config import openai_api_key, github_token, repo_owner, repo_name
 
 # Load environment variables from .env file
 load_dotenv()

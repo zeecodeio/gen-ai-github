@@ -21,20 +21,53 @@ class GitHubRAGPRInteraction:
     
     def get_pr_data(self):
         commits = self.pr.get_commits()
+        pr_data = []
+        pr_info = {}
         
-        # Collect PR description, changed files, and comments
-        description = self.pr.body
-        changed_files = [file.filename for file in self.pr.get_files()]
-        comments = [comment.body for comment in self.pr.get_comments()]
-        messages = ""
-        patches = ""
+        pr_info['repo_name'] = self.repo.name
+        pr_info['pr_number'] = self.pr.number
+        pr_info['description'] = self.pr.body
+        pr_info['changed_files'] = [file.filename for file in self.pr.get_files()]
+        pr_info['comments'] = [comment.body for comment in self.pr.get_comments()]
+        pr_info['type'] = 'pr'
+        
+        pr_data.append(pr_info)
+        
         for commit in commits:
-            messages += commit.commit.message
-            for file in commit.files:
-                if file.patch:
-                    patches += file.patch
+            commit_data = {}
+            
+            commit_data['repo_name'] = self.repo.name
+            commit_data['pr_number'] = self.pr.number
+            commit_data['commit_id'] = commit.sha
+            commit_data['commit_message'] = commit.commit.message
+            commit_data['commit_author'] = commit.commit.author.name
+            commit_data['commit_author_email'] = commit.commit.author.email
+            commit_data['commit_date'] = commit.commit.last_modified
+            
+            
+            commit_data['type'] = 'commit'
+            
+            pr_data.append(commit_data)
         
-        return description, changed_files, comments, patches, messages
+            for file in commit.files:
+                file_data = {}
+                
+                if file.patch:
+                    
+                    file_data['repo_name'] = self.repo.name
+                    file_data['pr_number'] = self.pr.number
+                    file_data['filename'] = file.filename
+                    file_data["patch"] = file.patch
+                    file_data["status"] = file.status
+                    file_data["changes"] = file.changes
+                    file_data["additions"] = file.additions
+                    file_data["deletions"] = file.deletions 
+
+                    file_data['type'] = 'file'
+                    pr_data.append(file_data)
+                    
+                
+        return pr_data
     
     def get_repo_content(self):
         contents = self.repo.get_contents("")
@@ -52,19 +85,7 @@ class GitHubRAGPRInteraction:
         return repo_contents
     
     
-    def process_pr_data(self):
-        description, changed_files, comments, messages, patches = self.get_pr_data()
-        contents = self.get_repo_content()
-        
-        # Combine all text data
-        all_text = f"PR Description: {description}\n\n"
-        all_text += f"Changed Files: {', '.join(changed_files)}\n\n"
-        all_text += f"Comments: {' '.join(comments)}"
-        all_text += f"Messages: {' '.join(messages)}"
-        all_text += f"Patches: {' '.join(patches)}"
-        all_text += f"Contents: {' '.join(contents)}"
-        
-        return all_text
+    
 
     def get_pr_details(self) -> Dict[str, Any]:
         """Get details of a specific PR."""
