@@ -18,9 +18,9 @@ from genaigithub.rag_llm_processor import RAGLLMProcessor, PGVectorStore
 github = Github(github_token)
 repos = github.get_user().get_repos()
 
-for issue in github.search_issues('type:pr review:none created:>2024-10-20 is:open is:unmerged org:spring-projects'):
+for issue in github.search_issues("type:pr review:none created:>2024-10-20 is:open is:unmerged org:spring-projects"):
     print(issue)
-    
+
 organization = "spring-projects"
 repos = github.get_organization(organization).get_repos()
 for repo in repos:
@@ -40,10 +40,10 @@ for repo in repos:
         "language": repo.language,
         "created_at": repo.created_at,
         "updated_at": repo.updated_at,
-        "total_count": total_count
+        "total_count": total_count,
     }
     # Get all open pull requests for this repo
-    pulls = repo.get_pulls(state='open')
+    pulls = repo.get_pulls(state="open")
     for pr in pulls:
         pr_data = {
             "number": pr.number,
@@ -53,7 +53,7 @@ for repo in repos:
             "created_at": pr.created_at,
             "updated_at": pr.updated_at,
             "user": pr.user.login,
-            "html_url": pr.html_url
+            "html_url": pr.html_url,
         }
         print(f"Pull Request #{pr.number}:")
         print(pr_data)
@@ -93,7 +93,7 @@ for repo in repos:
 #         "Are there sufficient tests for the changes?",
 #         "What suggestions can you make to improve the code?"
 #     ]
-    
+
 # review = []
 # history = []
 # for question in questions:
@@ -103,5 +103,3 @@ for repo in repos:
 #     print(f"Response: {answer}")
 #     print("\n")
 #     review.append({question: question, answer: answer})
-
-
