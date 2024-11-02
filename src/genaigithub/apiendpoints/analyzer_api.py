@@ -3,6 +3,7 @@ import logging
 from flask_cors import cross_origin
 from flask import request, jsonify, Blueprint
 from urllib.parse import quote_plus
+from datetime import datetime
 
 from genaigithub.github_pr_interaction import GitHubRAGPRInteraction
 from genaigithub.rag_llm_processor import RAGLLMProcessor, PGVectorStore, MongoDBVectorStore
@@ -123,20 +124,61 @@ def process_pr():
         response = processor.generate_response(qa_chain, question, context=context)
         history_messages = processor.get_chat_history()
         
-        # Save AI suggestion to MongoDB
-        for pr_file in pr_files:
-            mongodb_manager.save_ai_suggestion(
+        # Get relevant documents using the new invoke method
+        relevant_docs = retriever.invoke(question)
+        
+        # Extract text from the Document objects properly
+        relevant_chunks = []
+        for doc in relevant_docs:
+            # Handle both Document objects and dictionary-like objects
+            if hasattr(doc, 'page_content'):
+                # LangChain Document object
+                chunk_text = doc.page_content
+                chunk_metadata = doc.metadata
+            else:
+                # Dictionary-like object
+                chunk_text = doc.get('text', '')
+                chunk_metadata = doc.get('metadata', {})
+                
+            relevant_chunks.append({
+                'text': chunk_text,
+                'metadata': chunk_metadata
+            })
+
+        # Save AI suggestion with properly formatted metadata
+        try:
+            suggestion = mongodb_manager.save_ai_suggestion(
                 pull_request=pull_request,
-                pr_file=pr_file,
+                pr_file=pr_files[0] if pr_files else None,
                 suggestion=response,
                 metadata={
                     "question": question,
-                    "filename": pr_file.filename,
-                    "context": context
+                    "context": context,
+                    "chunks_used": [chunk['text'] for chunk in relevant_chunks],
+                    "chunks_metadata": [chunk['metadata'] for chunk in relevant_chunks],
+                    "timestamp": datetime.now().isoformat(),
+                    "model": "gpt-4",  # or whatever model you're using
+                    "confidence_score": 0.8  # You might want to get this from your model
+                }
+            )
+        except IndexError:
+            # Handle case where there are no pr_files
+            suggestion = mongodb_manager.save_ai_suggestion(
+                pull_request=pull_request,
+                pr_file=None,
+                suggestion=response,
+                metadata={
+                    "question": question,
+                    "context": context,
+                    "chunks_used": [chunk['text'] for chunk in relevant_chunks],
+                    "chunks_metadata": [chunk['metadata'] for chunk in relevant_chunks],
+                    "timestamp": datetime.now().isoformat(),
+                    "model": "gpt-4",
+                    "note": "No specific file associated with this suggestion"
                 }
             )
 
-        # Format response
+        # Format the response
         history = [
             {"question": msg.content, "response": next_msg.content}
             for msg, next_msg in zip(history_messages[::2], history_messages[1::2])
@@ -144,13 +186,15 @@ def process_pr():
         history = history[::-1]
 
         return jsonify({
-            "question": question, 
-            "response": response, 
-            "history": history, 
-            "repo_name": repo_name, 
-            "pr_number": pr_number
+            "question": question,
+            "response": response,
+            "history": history,
+            "repo_name": repo_name,
+            "pr_number": pr_number,
+            "suggestion_id": str(suggestion.id),
+            "cached": existing_review is not None and not data.get("force_refresh"),
+            "relevant_chunks": relevant_chunks  # Optionally include the relevant chunks in the response
         })
-
     except Exception as e:
         logger.error(f"Error processing PR: {str(e)}")
         return jsonify({"error": str(e)}), 500

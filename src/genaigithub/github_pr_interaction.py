@@ -25,12 +25,18 @@ class GitHubRAGPRInteraction:
         pr_data = []
         pr_info = {}
 
-        pr_info["repo_name"] = self.repo.name
-        pr_info["pr_number"] = self.pr.number
-        pr_info["description"] = self.pr.body
-        pr_info["changed_files"] = [file.filename for file in self.pr.get_files()]
-        pr_info["comments"] = [comment.body for comment in self.pr.get_comments()]
-        pr_info["type"] = "pr"
+        pr_info = {
+            "repo_name": self.repo.name,
+            "pr_number": self.pr.number,
+            "title": self.pr.title,  # Added
+            "description": self.pr.body,
+            "changed_files": [file.filename for file in self.pr.get_files()],
+            "comments": [comment.body for comment in self.pr.get_comments()],
+            "type": "pr",
+            "commit_author": self.pr.user.login,  # Added
+            "base_branch": self.pr.base.ref,  # Added
+            "head_branch": self.pr.head.ref,  # Added
+        }
 
         pr_data.append(pr_info)
 
