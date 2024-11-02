@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 from datetime import datetime
 from mongoengine import connect, disconnect
 

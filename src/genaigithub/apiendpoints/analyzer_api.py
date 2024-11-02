@@ -73,41 +73,18 @@ def process_pr():
     logger.info(f"Processing PR {pr_number} for repo {repo_name} - question: {question}")
 
     try:
-        # First, try to get existing processed data from MongoDB
-        existing_review = mongodb_manager.get_code_review(repo_name, pr_number)
+        # Fetch and process new data if needed
+        logger.info("Fetching fresh PR data from GitHub")
+        github_pr_interaction = GitHubRAGPRInteraction(github_token, repo_name, pr_number)
+        pr_data, commits_data, files_data = github_pr_interaction.get_pr_data()
+
+        # Process and cache the chunks
+        chunks_with_metadata = preprocessor.process_all_data(
+            pr_data=pr_data,
+            commits_data=commits_data,
+            files_data=files_data
+        )
         
-        if existing_review and not data.get("force_refresh"):
-            # Use cached data if available
-            logger.info("Using cached PR data from MongoDB")
-            chunks_with_metadata = preprocessor.get_cached_chunks(existing_review)
-            repo = existing_review.repository
-            pull_request = existing_review.pull_request
-            pr_files = existing_review.pr_files
-        else:
-            # Fetch and process new data if needed
-            logger.info("Fetching fresh PR data from GitHub")
-            github_pr_interaction = GitHubRAGPRInteraction(github_token, repo_name, pr_number)
-            pr_data, commits_data, files_data = github_pr_interaction.get_pr_data()
-
-            # Save raw data to MongoDB
-            repo, pull_request, pr_files = mongodb_manager.save_pr_review_data(
-                repo_name, pr_data[0], commits_data, files_data
-            )
-
-            # Process and cache the chunks
-            chunks_with_metadata = preprocessor.process_all_data(
-                pr_data=pr_data,
-                commits_data=commits_data,
-                files_data=files_data
-            )
-            
-            # Cache the processed chunks in MongoDB
-            mongodb_manager.cache_processed_chunks(
-                repo_name=repo_name,
-                pr_number=pr_number,
-                chunks_with_metadata=chunks_with_metadata
-            )
-
         # Set up RAG with processed chunks
         processor = get_processor(repo_name_for_memory, pr_number, openai_api_key, pg_vector_store)
         vector_store = processor.create_vector_store_from_documents(chunks_with_metadata)
@@ -122,19 +99,6 @@ def process_pr():
         context = processor.get_chat_history()
         response = processor.generate_response(qa_chain, question, context=context)
         history_messages = processor.get_chat_history()
-        
-        # Save AI suggestion to MongoDB
-        for pr_file in pr_files:
-            mongodb_manager.save_ai_suggestion(
-                pull_request=pull_request,
-                pr_file=pr_file,
-                suggestion=response,
-                metadata={
-                    "question": question,
-                    "filename": pr_file.filename,
-                    "context": context
-                }
-            )
 
         # Format response
         history = [

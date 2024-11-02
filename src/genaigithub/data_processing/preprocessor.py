@@ -189,15 +189,22 @@ class CodeReviewPreprocessor:
         
         # Get file extension and determine language
         filename = file.get('filename', '')
-        extension = filename.split('.')[-1] if '.' in filename else ''
+        logger.info(f"filename {filename}")
+        extension = filename.split(".")[-1]
+        logger.info(f"extension {extension}")
         language = LANGUAGE_MAPPING.get(extension, 'unknown')
+        logger.info(f"language {language}")
         
-        # Create language-specific text splitter for code
-        code_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            separators=RecursiveCharacterTextSplitter.get_separators_for_language(language)
-        )
+        if language == 'unknown':
+            logger.warning(f"Unknown language for file {filename}")
+            code_splitter = self.text_splitter
+        else:
+            # Create language-specific text splitter for code
+            code_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                separators=RecursiveCharacterTextSplitter.get_separators_for_language(language)
+            )
         
         # Process file metadata
         file_info = f"""

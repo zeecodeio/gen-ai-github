@@ -1,5 +1,5 @@
 # src/genaigithub/entities/code_review.py
-from mongoengine import Document, EmbeddedDocument, EmbeddedDocumentField, ListField, StringField, DateTimeField, IntField
+from mongoengine import Document, EmbeddedDocument, EmbeddedDocumentField, ListField, StringField, DateTimeField, IntField, DictField
 
 class CodeChange(EmbeddedDocument):
     filename = StringField(required=True)
