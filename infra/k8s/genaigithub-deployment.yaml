@@ -17,6 +17,10 @@ spec:
       - name: pr-reviewer-api
         image: jrvlima/pr-reviewer-api:latest-amd64
         imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: postgres-cert
+          mountPath: /etc/postgres/certs
+          readOnly: true
         ports:
           - containerPort: 8000
         envFrom:
@@ -28,4 +32,8 @@ spec:
             cpu: "200m"       # Maximum CPU allowed (200 milliCPU)
           requests:
             memory: "128Mi"  # Initial memory request
-            cpu: "100m"       # Initial CPU request      
+            cpu: "100m"       # Initial CPU request     
+      volumes:
+      - name: postgres-cert
+        configMap:
+          name: postgres-ca-cert 

@@ -3,11 +3,17 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS, Chroma, PGVector
 from langchain_community.chat_models import ChatOpenAI
+from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.documents import Document
 from typing import List, Dict, Any
+from pymongo import MongoClient
+import logging
+from genaigithub.config.languages import LANGUAGE_MAPPING
+from uuid import uuid4
 from langchain_text_splitters import (
     Language,
     RecursiveCharacterTextSplitter,
@@ -18,6 +24,10 @@ from langchain.chains import (
 )
 
 from langchain.chains.combine_documents import create_stuff_documents_chain
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class VectorStoreInterface(ABC):
@@ -74,6 +84,33 @@ class PGVectorStore(VectorStoreInterface):
         return self.vector_store.as_retriever()
 
 
+class MongoDBVectorStore(VectorStoreInterface):
+    def __init__(self, connection_string):
+        self.mongodb_database = "genaigithub"
+        self.mongodb_collection = "pr_changes"
+        self.atlas_vector_search_index_name = "pr-index-changes"
+        self.connection_string = connection_string
+        self.client = MongoClient(connection_string)
+        self.collection = self.client[self.mongodb_database][self.mongodb_collection]
+
+    def create_vector_store_from_documents(self, documents, embeddings):
+        vector_store = MongoDBAtlasVectorSearch(
+            collection=self.collection,
+            embedding=embeddings,
+            index_name=self.atlas_vector_search_index_name,
+            relevance_score_fn="cosine",
+        )
+        uuids = [str(uuid4()) for _ in range(len(documents))]
+        vector_store.add_documents(documents=documents, ids=uuids)
+        return vector_store
+
+    def create_vector_store_from_texts(self, texts, embeddings):
+        return None
+
+    def as_retriever(self):
+        return self.vector_store.as_retriever()
+
+
 class RAGLLMProcessor:
     def __init__(
         self,
@@ -90,12 +127,20 @@ class RAGLLMProcessor:
         self.vector_store = vector_store
         self.chat_history = []
 
-    def create_vector_store_from_documents(self, documents: List[str]):
+    def create_vector_store_from_documents(self, documents: List[object]):
         """Create a vector store from the given documents."""
         texts = [chunk["text"] for chunk in documents]
         metadatas = [chunk["metadata"] for chunk in documents]
         documents = self.text_splitter.create_documents(texts=texts, metadatas=metadatas)
         return self.vector_store.create_vector_store_from_documents(documents, embeddings=self.embeddings)
+
+    def reset_memory(self):
+        """Clears memory for a new session or PR."""
+        self.memory.clear()
+
+    def get_chat_history(self):
+        """Returns current chat history."""
+        return self.memory.chat_memory.messages
 
     def reset_chat_history(self):
         self.chat_history = []
@@ -107,30 +152,33 @@ class RAGLLMProcessor:
 
     def create_qa_chain(self, retriever) -> ConversationalRetrievalChain:
         """Create a question-answering chain using the given vector store."""
-        system_prompt = (
-            "You are a tech leader, software architect and pr reviewer assistant for question-answering tasks."
-            "Objective: - Automate the review process for pull requests. - Provide detailed and actionable feedback on code changes. - Identify potential bugs, security vulnerabilities, and coding standard violations. - Suggest improvements and best practices."
-            "\n\n"
-            "{context}"
-        )
 
-        prompt = ChatPromptTemplate.from_messages(
+        system_prompt = """
+        You are a tech leader, software architect, and PR reviewer assistant for question-answering tasks.
+        Objective:
+            - Automate the review process for pull requests.
+            - Provide detailed and actionable feedback on code changes.
+            - Identify potential bugs, security vulnerabilities, and coding standard violations.
+            - Suggest improvements and best practices.
+        Answer questions based strictly on the following context and provide clear, actionable responses.
+                ---
+                Context: {context}
+                """
+        self.prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", system_prompt),
                 ("human", "{input}"),
             ]
         )
-        combine_docs_chain = create_stuff_documents_chain(self.llm, prompt)
+        combine_docs_chain = create_stuff_documents_chain(self.llm, self.prompt)
 
-        contextualize_system_prompt = (
-            "Given a chat history and the latest user question "
-            "which might reference context in the chat history, "
-            "formulate a standalone question which can be understood "
-            "without the chat history. Do NOT answer the question, "
-            "just reformulate it if needed and otherwise return it as is."
-        )
+        contextualize_system_prompt = """
+            Given a chat history and the latest user question, which might reference context in the chat history,
+            reformulate the question into a standalone form that captures all relevant details, allowing it to be
+            understood independently of prior conversation.
+        """
 
-        contextualize_prompt = ChatPromptTemplate.from_messages(
+        self.contextualize_prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", contextualize_system_prompt),
                 MessagesPlaceholder("chat_history"),
@@ -138,66 +186,117 @@ class RAGLLMProcessor:
             ]
         )
 
-        history_aware_retriever = create_history_aware_retriever(self.llm, retriever, contextualize_prompt)
-
+        history_aware_retriever = create_history_aware_retriever(self.llm, retriever, self.contextualize_prompt)
         qa_chain = create_retrieval_chain(history_aware_retriever, combine_docs_chain)
 
         return qa_chain
 
-    def process_pr_data(self, pr_data):
+    def process_files_data(self, files_data):
         chunks_with_metadata = []
-        for data in pr_data:
-            content = f"{str(data)}"
+
+        for file in files_data:
+            # Split patch content using language-specific separators
+            file_name = file["filename"]
+            print(str(file))
+            logger.info(f"Processing file: {file_name}")
+            extension = file_name.split(".")[-1]
+            language = LANGUAGE_MAPPING.get(extension, "python")
+            patch_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                separators=RecursiveCharacterTextSplitter.get_separators_for_language(language),
+            )
+            patch_content = file.get("patch", "")
+            patch_chunks = patch_splitter.split_text(patch_content)
+            
+            content = file.get("content", "")
+            content_chunks = patch_splitter.split_text(content)
+
+            # Convert other file attributes to a string and split (if needed)
+            other_content = f"""
+                File Name: {file.get('filename', '')}
+                File Status: {file.get('status', '')}
+                File Changes: {file.get('changes', '')}
+                File Additions: {file.get('additions', '')}
+                File Deletions: {file.get('deletions', '')}
+            """
+            other_chunks = self.text_splitter.split_text(other_content)
+
+            # Combine patch and other content chunks
+            for chunk in patch_chunks + other_chunks + content_chunks:
+                chunks_with_metadata.append(
+                    {
+                        "text": chunk,
+                        "metadata": {
+                            "repo_name": file.get("repo_name", ""),
+                            "pr_number": file.get("pr_number", ""),
+                            "filename": file.get("filename", ""),
+                            "status": file.get("status", ""),
+                            "changes": file.get("changes", ""),
+                            "additions": file.get("additions", ""),
+                            "deletions": file.get("deletions", ""),
+                        },
+                    }
+                )
+
+        return chunks_with_metadata
+
+    def process_commits_data(self, commits_data):
+        chunks_with_metadata = []
+        for commit in commits_data:
+            content = f"""
+                Commit ID: {commit.get('commit_id', '')}
+                Commit Message: {commit.get('commit_message', '')}
+                Commit Author: {commit.get('commit_author', '')}
+                Commit Author Email: {commit.get('commit_author_email', '')}
+                Commit Date: {commit.get('commit_date', '')}
+            """
 
             chunks = self.text_splitter.split_text(content)
 
             for chunk in chunks:
-                if data["type"] == "pr":
-                    chunks_with_metadata.append(
-                        {
-                            "text": chunk,
-                            "metadata": {
-                                "repo_name": data["repo_name"],
-                                "pr_number": data["pr_number"],
-                                "description": data["description"],
-                                "changed_files": data["changed_files"],
-                                "comments": data["changed_files"],
-                            },
-                        }
-                    )
+                chunks_with_metadata.append(
+                    {
+                        "text": chunk,
+                        "metadata": {
+                            "repo_name": commit["repo_name"],
+                            "pr_number": commit["pr_number"],
+                            "commit_id": commit["commit_id"],
+                            "commit_message": commit["commit_message"],
+                            "commit_author": commit["commit_author"],
+                            "commit_author_email": commit["commit_author_email"],
+                            "commit_date": commit["commit_date"],
+                        },
+                    }
+                )
 
-                if data["type"] == "commit":
-                    chunks_with_metadata.append(
-                        {
-                            "text": chunk,
-                            "metadata": {
-                                "repo_name": data["repo_name"],
-                                "pr_number": data["pr_number"],
-                                "commit_id": data["commit_id"],
-                                "commit_message": data["commit_message"],
-                                "commit_author": data["commit_author"],
-                                "commit_author_email": data["commit_author_email"],
-                                "commit_date": data["commit_date"],
-                            },
-                        }
-                    )
+        return chunks_with_metadata
 
-                if data["type"] == "file":
-                    chunks_with_metadata.append(
-                        {
-                            "text": chunk,
-                            "metadata": {
-                                "repo_name": data["repo_name"],
-                                "pr_number": data["pr_number"],
-                                "filename": data["filename"],
-                                "patch": data["patch"],
-                                "status": data["status"],
-                                "changes": data["changes"],
-                                "additions": data["additions"],
-                                "deletions": data["deletions"],
-                            },
-                        }
-                    )
+    def process_pr_data(self, pr_data):
+        chunks_with_metadata = []
+        for data in pr_data:
+            content = f"""
+                Repo Name: {data.get('repo_name', '')}
+                PR Number: {data.get('pr_number', '')}
+                Description: {data.get('description', '')}
+                Changed Files: {data.get('changed_files', '')}
+                Comments: {data.get('comments', '')}
+            """
+            chunks = self.text_splitter.split_text(content)
+
+            for chunk in chunks:
+                chunks_with_metadata.append(
+                    {
+                        "text": chunk,
+                        "metadata": {
+                            "repo_name": data["repo_name"],
+                            "pr_number": data["pr_number"],
+                            "description": data["description"],
+                            "changed_files": data["changed_files"],
+                            "comments": data["changed_files"],
+                        },
+                    }
+                )
 
         return chunks_with_metadata
 
@@ -212,13 +311,16 @@ class RAGLLMProcessor:
             documents.append(document)
         return documents
 
-    def generate_response(self, qa_chain: ConversationalRetrievalChain, query: str) -> str:
+    def log_prompt(self, prompt_content):
+        """Log each message in the constructed prompt."""
+        logger.info("Prompt used for qa_chain:")
+        for message in prompt_content:
+            logger.info(f"{message.type.capitalize()} message: {message.content}")
+
+    def generate_response(self, qa_chain: ConversationalRetrievalChain, query: str, context) -> str:
         """Generate a response using the QA chain."""
-        response = qa_chain.invoke({"input": query, "chat_history": self.chat_history})["answer"]
-        self.chat_history.extend(
-            [
-                HumanMessage(content=query),
-                AIMessage(content=response),
-            ]
-        )
+        prompt_content = self.contextualize_prompt.format_messages(chat_history=context, input=query)
+        self.log_prompt(prompt_content)
+        response = qa_chain.invoke({"input": query, "chat_history": context})["answer"]
+        self.memory.save_context({"input": query}, {"output": response})
         return response

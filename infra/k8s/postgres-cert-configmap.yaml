@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-ca-cert
+  namespace: genaigithub
+data:
+  ca-certificate.crt: |-
+    -----BEGIN CERTIFICATE-----
+    MIIEQTCCAqmgAwIBAgIUYYRVcpeESUnNLtLGI1y2inJCV68wDQYJKoZIhvcNAQEM
+    BQAwOjE4MDYGA1UEAwwvNGU4NjJlOGYtMjZhYS00MDE2LTg4Y2QtNDYxMjgyZjEz
+    MmQyIFByb2plY3QgQ0EwHhcNMjQxMDMxMTMzODQ4WhcNMzQxMDI5MTMzODQ4WjA6
+    MTgwNgYDVQQDDC80ZTg2MmU4Zi0yNmFhLTQwMTYtODhjZC00NjEyODJmMTMyZDIg
+    UHJvamVjdCBDQTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBALCsj0jg
+    iU8uLkS3dAVi2Vaw4kumIY763RaO1nHhrg0aiZpQyoSp8fO9ULfcacAqQM1bwajq
+    CHlO6l//kCSmB18Nozf/hbRSUVjZxoh0WRUBAPtYC7BiK1j/daoW8on42zGmIf4m
+    9JIPKx+tbc6MSyG8Gsv84G/augdpeQklFBBXEHd+zHp9SI24ztG0OrXrvjjUCtfl
+    x1X0BpheHw1Il24s9704pbp1IDQzNYYhGo/euMawJ4IKbFhc7Qjfrn6f+loJxiv/
+    3iB3w690SKFFS0EiXztFuX4H2KWnyUyd8LjbQuMQ0XGeKlbrna0TlCyqj0/MKbam
+    8M/7Cfey4nDEjd+0ejXCkoWY6Qqos52BbC61tzSvuKSg8vYNSiHJAr+eLrsaKI7S
+    x1mvovQsZsraPbKaqU+568zxdrdiXm7XC0UB0bN9t7BpLRYm+fVYxEBrLPpGt7SX
+    ZzxpR01FPuy+hxS7XJbQo8So6Uueu95p9rqc1ljM5qg8Z/7gSpoqWfQeYwIDAQAB
+    oz8wPTAdBgNVHQ4EFgQUbw5PlJW7g+2hCEmfG1rZ1is7Ah8wDwYDVR0TBAgwBgEB
+    /wIBADALBgNVHQ8EBAMCAQYwDQYJKoZIhvcNAQEMBQADggGBAGFmqXcDFTZNxj5W
+    3leAXRe69PZMTlscvJadlNvPrvCw4IzK5TExccyC7remI7xrSF2phdpLgsGnmeXJ
+    How5kM9DFPVRFBsC3TjUG9VC2cSdClFxqOC8tD2vvHJtx+KPLw7iL1amsTz/xeUj
+    RHrJjjHrsKFmTAa8YtyVdTQ5REe4N95LrtkhER8Htx//5n9WXKwlXq0sw5zQ1Yh2
+    Yvv1cG0LEv8POEiRR11Z91NSK1jqcjDxONc7tV75tOhS8UQhSnD1b4qbEp0EFs3d
+    J4gdOmj6xWzmsz2R3vpbIUK3hnB+e7CwcXqklXK3usnRZaS80Kjqz3cpNDLR2/8j
+    SwNVC67Ou4zKxLYiwTA/osuxyudkhZ+aWfzoEmzVyVTG4PZEmceCcR+lXlK1AiIT
+    C3nTJMkjOA38ElJKkRakjs+nrWirBSggVQtDNb+OwXqOxR4bMmImb6skk4lhpzr4
+    BJUUkr9kfy7tBxU3MiQHfFxCSjVXp8sKvHK4tzdj+n+g0unHtw==
+    -----END CERTIFICATE-----

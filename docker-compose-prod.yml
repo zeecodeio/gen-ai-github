@@ -1,42 +1,24 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_DB: vectorstore
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "6024:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  mongodb:
-    image: mongo:5
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpassword
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-
   genaigithub:
-    image: jrvlima/pr-reviewer-api
+    image: pr-reviewer-api
+    volumes:
+      - ${PGSSLROOTCERT}:/etc/postgres/certs/ca-certificate.crt
     environment:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      POSTGRES_DB: vectorstore
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
+      PGPASSWORD: ${PGPASSWORD}
+      PGHOST: ${PGHOST}
+      PGPORT: ${PGPORT}
+      PGDATABASE: ${PGDATABASE}
+      PGUSER: ${PGUSER}
+      PGSSLROOTCERT: /etc/postgres/certs/ca-certificate.crt
+      PGSSLMODE: verify-full
+      MONGODB_HOST: ${MONGODB_HOST}
+      MONGODB_PORT: ${MONGODB_PORT}
+      MONGODB_DATABASE: ${MONGODB_DATABASE}
+      MONGODB_USERNAME: ${MONGODB_USERNAME}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD}
     ports:
       - "8000:8000"
-    depends_on:
-      - postgres
-
-volumes:
-  postgres_data:
-  mongodb_data:

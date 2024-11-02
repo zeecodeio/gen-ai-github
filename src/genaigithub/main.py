@@ -1,5 +1,5 @@
 from github import Github
-
+import logging
 from genaigithub.entities.repository import Repository
 from genaigithub.entities.pull_request import PullRequest, PRStatus
 from genaigithub.entities.pr_file import PrFile, FileStatus
@@ -8,10 +8,92 @@ from genaigithub.entities.ai_suggestion import AiSuggestion
 from genaigithub.config.database import init_db
 
 from genaigithub.config.env_config import github_token, openai_api_key
-from genaigithub.config.env_config import postgres_db, postgres_user, postgres_password, postgres_host, postgres_port
+
+# from genaigithub.config.env_config import postgres_db, postgres_user, postgres_password, postgres_host, postgres_port
 from genaigithub.config.env_config import default_repo_name, pr_number
 from genaigithub.github_pr_interaction import GitHubRAGPRInteraction
 from genaigithub.rag_llm_processor import RAGLLMProcessor, PGVectorStore
+from genaigithub.rag_llm_processor import MongoDBVectorStore
+from genaigithub.config.env_config import mongodb_host, mongodb_username, mongodb_password
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+from urllib.parse import quote_plus
+
+from genaigithub.config.env_config import pg_password, pg_host, pg_port, pg_database, pg_user, pg_ssl_root_cert
+
+# processor_mapping = {}
+# history = []
+
+# def get_processor(repo_name_for_memory, pr_number, openai_api_key, vector_store):
+#     processor_key = f"{repo_name_for_memory}_{pr_number}"
+#     if processor_key not in processor_mapping:
+#         processor_mapping[processor_key] = RAGLLMProcessor(
+#             openai_api_key=openai_api_key,
+#             vector_store=vector_store,
+#             memory_key=f"chat_history_{repo_name_for_memory}_{pr_number}",
+#             model_name="gpt-4",
+#         )
+#     return processor_mapping[processor_key]
+
+# repo_name = default_repo_name
+# escaped_password = quote_plus(pg_password)
+
+# # Use PGVector for the vector store
+# pg_connection_string = (
+#     f"postgresql+psycopg://{pg_user}:{escaped_password}@{pg_host}:{pg_port}/{pg_database}"
+#     f"?sslmode=verify-full"
+#     f"&sslrootcert={quote_plus(pg_ssl_root_cert)}"  # Escape path characters
+# )
+# pg_vector_store = PGVectorStore(pg_connection_string)
+
+# mongodb_connection_string = f"mongodb+srv://{mongodb_username}:{mongodb_password}@{mongodb_host}/?retryWrites=true&w=majority&appName=zeecode-genai-github"
+# mongodb_vector_store = MongoDBVectorStore(mongodb_connection_string)
+
+# repo_name_for_memory = default_repo_name.replace("/", "_")
+# repo_name_for_query = repo_name.split('/')[1]
+
+# logger.info(f"Processing PR {pr_number} for repo {repo_name}")
+
+# github_pr_interaction = GitHubRAGPRInteraction(github_token, repo_name, pr_number)
+# pr_data = github_pr_interaction.get_pr_data()
+
+# processor = get_processor(repo_name_for_memory, pr_number, openai_api_key, pg_vector_store)
+# chunks_with_metadata = processor.process_pr_data(pr_data)
+# vector_store = processor.create_vector_store_from_documents(chunks_with_metadata)
+
+# retriever = vector_store.as_retriever()
+# retriever.search_kwargs = {"filter": {"repo_name": repo_name_for_query, "pr_number": pr_number}}
+
+# qa_chain = processor.create_qa_chain(retriever)
+# if len(history) == 0:
+#     processor.reset_memory()
+
+# questions = [
+#         "What are the main changes in this PR?",
+#         "Are there any potential security issues?",
+#         "Does the code follow best practices according to name conventions and known code styles for the language?",
+#         "Are there sufficient tests for the changes?",
+#         "What suggestions can you make to improve the code?"
+#     ]
+
+# review = []
+
+# for question in questions:
+#     context = processor.get_chat_history()
+#     response = processor.generate_response(qa_chain, question, context=context)
+#     history_messages = processor.get_chat_history()
+
+#     history = [{"question": msg.content, "response": next_msg.content}
+#             for msg, next_msg in zip(history_messages[::2], history_messages[1::2])]
+
+#     history = history[::-1]
+#     print(f"Query: {question}")
+#     print("\n")
+#     print(f"Response: {response}")
+#     print("\n")
+#     review.append({question: question, response: response})
+
 
 # init_db()
 
@@ -58,48 +140,3 @@ for repo in repos:
         print(f"Pull Request #{pr.number}:")
         print(pr_data)
     print(repo_data)
-
-
-# pg_connection_string = f"postgresql+psycopg://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}"
-# vector_store = PGVectorStore(pg_connection_string)
-
-# repo_name_for_memory = default_repo_name.replace("/", "_")
-
-# # Create the processor with PGVector
-# processor = RAGLLMProcessor(openai_api_key, vector_store, memory_key=f"chat_history_{repo_name_for_memory}_{pr_number}", model_name="gpt-4")
-
-# # Use the provided repo_name or fall back to the one from .env
-# repo_name = default_repo_name
-# github_pr_interaction = GitHubRAGPRInteraction(github_token, repo_name, pr_number)
-# pr_data = github_pr_interaction.get_pr_data()
-
-# chunks_with_metadata = processor.process_pr_data(pr_data)
-
-# repo_name_for_query = repo_name.split('/')[1]
-# vector_store = processor.create_vector_store_from_documents(chunks_with_metadata)
-
-# retriever = vector_store.as_retriever()
-# retriever.search_kwargs = {
-#     "filter": {"repo_name": repo_name_for_query, "pr_number": pr_number}
-# }
-
-# qa_chain = processor.create_qa_chain(retriever)
-# processor.reset_chat_history()
-
-# questions = [
-#         "What are the main changes in this PR?",
-#         "Are there any potential security issues?",
-#         "Does the code follow best practices according to name conventions and known code styles for the language?",
-#         "Are there sufficient tests for the changes?",
-#         "What suggestions can you make to improve the code?"
-#     ]
-
-# review = []
-# history = []
-# for question in questions:
-#     answer = processor.generate_response(qa_chain, question)
-#     print(f"Query: {question}")
-#     print("\n")
-#     print(f"Response: {answer}")
-#     print("\n")
-#     review.append({question: question, answer: answer})

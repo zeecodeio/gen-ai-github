@@ -1,0 +1,14 @@
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: genaigithub-certificate-tls
+  namespace: genaigithub
+spec:
+  secretName: genaigithub-certificate-tls
+  issuerRef:
+    name: letsencrypt-prod  # Name of your ClusterIssuer
+    kind: ClusterIssuer
+  commonName: pr-analyzer-api.k8s.zeecode.io
+  dnsNames:
+  - pr-analyzer-api.k8s.zeecode.io

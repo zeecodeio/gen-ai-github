@@ -34,6 +34,9 @@ class GitHubRAGPRInteraction:
 
         pr_data.append(pr_info)
 
+        commits_data = []
+        files_data = []
+
         for commit in commits:
             commit_data = {}
 
@@ -44,16 +47,15 @@ class GitHubRAGPRInteraction:
             commit_data["commit_author"] = commit.commit.author.name
             commit_data["commit_author_email"] = commit.commit.author.email
             commit_data["commit_date"] = commit.commit.last_modified
-
             commit_data["type"] = "commit"
 
-            pr_data.append(commit_data)
+            commits_data.append(commit_data)
 
             for file in commit.files:
                 file_data = {}
 
                 if file.patch:
-
+                    file_data['content'] = f"{base64.b64decode(self.repo.get_contents(file.filename).content)}"
                     file_data["repo_name"] = self.repo.name
                     file_data["pr_number"] = self.pr.number
                     file_data["filename"] = file.filename
@@ -62,11 +64,11 @@ class GitHubRAGPRInteraction:
                     file_data["changes"] = file.changes
                     file_data["additions"] = file.additions
                     file_data["deletions"] = file.deletions
-
                     file_data["type"] = "file"
-                    pr_data.append(file_data)
 
-        return pr_data
+                    files_data.append(file_data)
+
+        return pr_data, commits_data, files_data
 
     def get_repo_content(self):
         contents = self.repo.get_contents("")
