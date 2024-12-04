@@ -55,7 +55,10 @@ class GitHubRAGPRInteraction:
                 file_data = {}
 
                 if file.patch:
-                    file_data['content'] = f"{base64.b64decode(self.repo.get_contents(file.filename).content)}"
+                    try:
+                        file_data['content'] = f"{base64.b64decode(self.repo.get_contents(file.filename).content)}"
+                    except Exception as e:
+                        file_data['content'] = f"Error retrieving content: {str(e)}"
                     file_data["repo_name"] = self.repo.name
                     file_data["pr_number"] = self.pr.number
                     file_data["filename"] = file.filename

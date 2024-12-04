@@ -69,19 +69,30 @@ class ChromaVectorStore(VectorStoreInterface):
 class PGVectorStore(VectorStoreInterface):
     def __init__(self, connection_string):
         self.connection_string = connection_string
+        self.vector_store = None
 
     def create_vector_store_from_documents(self, documents, embeddings):
-        return PGVector.from_documents(
+        self.vector_store = PGVector.from_documents(
             documents, embeddings, connection_string=self.connection_string, collection_name="pr_changes"
         )
+        return self.vector_store
 
     def create_vector_store_from_texts(self, pr_chuncks, embeddings):
-        return PGVector.from_texts(
+        self.vector_store = PGVector.from_texts(
             pr_chuncks, embeddings, connection_string=self.connection_string, collection_name="pr_changes"
         )
+        return self.vector_store
 
     def as_retriever(self):
         return self.vector_store.as_retriever()
+    
+    def cleanup(self):
+        """Clean up the PostgreSQL vector store instance"""
+        if self.vector_store:
+            # Delete all entries in the collection
+            self.vector_store.delete_collection()
+            # Reset the instance
+            self.vector_store = None
 
 
 class MongoDBVectorStore(VectorStoreInterface):
@@ -128,15 +139,17 @@ class RAGLLMProcessor:
         self.chat_history = []
 
     def create_vector_store_from_documents(self, documents: List[object]):
-        """Create a vector store from the given documents."""
+        logger.info("Creating vector store from documents")
         texts = [chunk["text"] for chunk in documents]
         metadatas = [chunk["metadata"] for chunk in documents]
         documents = self.text_splitter.create_documents(texts=texts, metadatas=metadatas)
         return self.vector_store.create_vector_store_from_documents(documents, embeddings=self.embeddings)
 
     def reset_memory(self):
-        """Clears memory for a new session or PR."""
+        logger.info("Clearing memory for new session or PR")
         self.memory.clear()
+        if self.vector_store:
+            self.vector_store.cleanup()
 
     def get_chat_history(self):
         """Returns current chat history."""
@@ -151,8 +164,7 @@ class RAGLLMProcessor:
             self.chat_history.append(AIMessage(content=message["response"]))
 
     def create_qa_chain(self, retriever) -> ConversationalRetrievalChain:
-        """Create a question-answering chain using the given vector store."""
-
+        logger.info("Creating question-answering chain using the given vector store")
         system_prompt = """
         You are a tech leader, software architect, and PR reviewer assistant for question-answering tasks.
         Objective:
@@ -193,6 +205,7 @@ class RAGLLMProcessor:
 
     def process_files_data(self, files_data):
         chunks_with_metadata = []
+        logger.info(f"Processing {len(files_data)} files")
 
         for file in files_data:
             # Split patch content using language-specific separators
@@ -243,6 +256,7 @@ class RAGLLMProcessor:
 
     def process_commits_data(self, commits_data):
         chunks_with_metadata = []
+        logger.info(f"Processing {len(commits_data)} commits")
         for commit in commits_data:
             content = f"""
                 Commit ID: {commit.get('commit_id', '')}
@@ -274,6 +288,7 @@ class RAGLLMProcessor:
 
     def process_pr_data(self, pr_data):
         chunks_with_metadata = []
+        logger.info(f"Processing {len(pr_data)} PRs")
         for data in pr_data:
             content = f"""
                 Repo Name: {data.get('repo_name', '')}
@@ -301,7 +316,7 @@ class RAGLLMProcessor:
         return chunks_with_metadata
 
     def process_pr_files(self, pr_files: List[Dict[str, Any]]) -> List[str]:
-        """Process PR files and return a list of formatted strings."""
+        logger.info("Processing PR files and returning list of formatted strings")
         documents = []
         for file in pr_files:
             filename = file["filename"]
@@ -312,13 +327,13 @@ class RAGLLMProcessor:
         return documents
 
     def log_prompt(self, prompt_content):
-        """Log each message in the constructed prompt."""
+        logger.info("Logging each message in the constructed prompt")
         logger.info("Prompt used for qa_chain:")
         for message in prompt_content:
             logger.info(f"{message.type.capitalize()} message: {message.content}")
 
     def generate_response(self, qa_chain: ConversationalRetrievalChain, query: str, context) -> str:
-        """Generate a response using the QA chain."""
+        logger.info("Generating response using QA chain")
         prompt_content = self.contextualize_prompt.format_messages(chat_history=context, input=query)
         self.log_prompt(prompt_content)
         response = qa_chain.invoke({"input": query, "chat_history": context})["answer"]

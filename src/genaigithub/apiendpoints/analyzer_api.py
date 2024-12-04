@@ -59,6 +59,7 @@ def process_pr():
     pr_number = int(data.get("pr_number"))
     repo_name = data.get("repo_name", default_repo_name)
     history = data.get("history", [])
+    
     question = data.get("question", "What changes were made in the PR?")
 
     if not pr_number:
@@ -79,22 +80,34 @@ def process_pr():
         pr_data, commits_data, files_data = github_pr_interaction.get_pr_data()
 
         # Process and cache the chunks
-        chunks_with_metadata = preprocessor.process_all_data(
-            pr_data=pr_data,
-            commits_data=commits_data,
-            files_data=files_data
-        )
-        
+        # chunks_with_metadata = preprocessor.process_all_data(
+        #     pr_data=pr_data,
+        #     commits_data=commits_data,
+        #     files_data=files_data
+        # )
         # Set up RAG with processed chunks
         processor = get_processor(repo_name_for_memory, pr_number, openai_api_key, pg_vector_store)
-        vector_store = processor.create_vector_store_from_documents(chunks_with_metadata)
-        retriever = vector_store.as_retriever()
-        retriever.search_kwargs = {"filter": {"repo_name": repo_name_for_query, "pr_number": pr_number}}
-
-        # Generate response
-        qa_chain = processor.create_qa_chain(retriever)
+        
         if len(history) == 0:
             processor.reset_memory()
+        
+        pr_chunks_with_metadata = processor.process_pr_data(pr_data)
+        commits_chunks_with_metadata = processor.process_commits_data(commits_data)
+        files_chunks_with_metadata = processor.process_files_data(files_data)
+        
+        chunks_with_metadata = pr_chunks_with_metadata + commits_chunks_with_metadata + files_chunks_with_metadata
+        vector_store = processor.create_vector_store_from_documents(chunks_with_metadata)
+        retriever = vector_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={
+                "k": 4,  # Number of documents to retrieve
+                "score_threshold": 0.7,  # Minimum similarity score,
+                "filter": {"repo_name": repo_name_for_query, "pr_number": pr_number}
+            },
+            
+        )
+        # Generate response
+        qa_chain = processor.create_qa_chain(retriever)
 
         context = processor.get_chat_history()
         response = processor.generate_response(qa_chain, question, context=context)
