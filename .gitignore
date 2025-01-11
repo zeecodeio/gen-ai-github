@@ -135,4 +135,4 @@ dmypy.json
 .DS_Store
 
 
-k8s/genaigithub-secret.yaml
+k8s/genaigithub-secret.yaml.vscode/
