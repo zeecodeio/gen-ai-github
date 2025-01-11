@@ -136,3 +136,4 @@ dmypy.json
 
 
 k8s/genaigithub-secret.yaml.vscode/
+k8s/genaigithub-secret.yaml
